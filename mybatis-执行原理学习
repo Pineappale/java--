@@ -1,0 +1,379 @@
+mybatis包含四大组件：
+
+SqlSessionFactoryBuilder（构造器）
+
+MyBatis首先是使用配置或者代码去生成SqlSessionFactory，而MyBatis提供了构造器SqlSessionFactoryBuilder,它采用Builder模式来负责构建SqlSessionFactory，
+
+SqlSessionFactory（工厂接口）
+
+在MyBayis中SqlSessionFactory是一个接口，它存在两个实现类：DefaultSqlSessionFactory和SqlSessionManager多使用在多线程环境中。它的具体实现依靠的是DefaultSqlSessionFactory，它们之间的关系如下：
+
+当XMLConfigBudiler解析XML时，会将每一个SQL和其配置的内容保存起来，
+
+在MyBatis中一条SQL和它相关的配置信息是由3部分组成的，它们分别是MappedStatement、SqlSource和BoundSql。
+
+MappedStatement： MappedStatement维护一条<select|update|delete|insert>节点的封装
+
+SqlSource： 负责根据用户传递的parameterObject，动态地生成SQL语句，将信息封装到BoundSql对象中，并返回
+
+BoundSql ：BoundSql对象表示存储：动态生成的SQL语句以及相应的参数信息
+
+SqlSession（会话接口）
+
+在MyBtis中SqlSession是其核心接口，它有两个实现类，DefaultSqlSession（单线程）和SqlSessionManager（多线程）
+
+SqlSession的作用类似于JDBC中的Connection对象，代表着一个连接资源的启用
+
+在MyBatis中，通过MapperProxy动态代理Dao， 也就是说当执行自己写的Dao里面的方法的时候，其实是对应的mapperProxy在代理。
+
+首先它判断是否注册一个Mapper，如果没有则会抛出异常信息，如果有就会启用MapperProxyFactory工厂来生成一个代理实例
+
+execute()方法主要的作用其实就是先判断CRUD类型，然后根据类型去选择到底执行sqlSession中的哪个方法
+
+至此MyBatis为啥只用Mapper接口就能够运行已经清楚了，
+
+因为Mapper的XML文件的命名空间对应的是这个接口的全限定名，而方法就是那条SQL的id。
+
+这样MyBatis就可以通过全路径和方法名，将其和代理对象绑定起来。
+
+通过动态代理技术，让这个接口运行起来了，
+
+而后采用命令模式。最后使用SqlSession接口的方法使得它能够执行对应的SQL。
+
+SQL Mapper（映射器）
+
+映射器就是一个动态代理对进入到了MapperMethod的execute方法，
+
+然后它经过判断就进入了SqlSession的delete、update、insert、select等方法。
+
+而实际上SqlSession的执行过程是通过Executor、StatementHandler、ParameterHandler和ResultHandler来完成数据库的操作和结果返回的。
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+SqlSession四大对象：
+
+Executor：负责SQL语句的生成和查询缓存的维护
+
+SimpleExecutor：简易执行器，默认的执行器。
+
+ReuseExecutor：一种执行器重用预处理语句
+
+BatchExecutor：这个执行器会批量执行所有更新语句
+
+StatementHandler：数据库会话器 封装了JDBC Statement操作，负责对JDBC statement 的操作，如设置参数等
+
+CallableStatementHandler：对应JDBC里面的CallableStatement（存储过程处理）类。
+
+PreparedStatementHandler：对应JDBC里面的PreparedStatement（预编译处理）类。（默认）
+
+SimpleStatementHandler：对应JDBC里面的Statement类。
+
+ParameterHandler：负责对用户传递的参数转换成JDBC Statement 所对应的数据类型，完成对预编译参数得设置。
+
+DefaultParameterHandler实现类，通过TypeHandler用于实现JAVA类型和JDBC类型的相互转换
+
+ResultSetHandler：负责将JDBC返回的ResultSet结果集对象转换成List类型的集合
+
+DefaultResultSetHandler实现类，
+
+总结
+
+SqlSession是通过执行器Executor调度StatementHandler来运行的。而StatementHandler经过3步：
+
+prepared预编译SQL
+
+parameterize设置参数
+
+query/update执行SQL
+
+其中，parameterize是调用parameterHandler的方法设置的，而参数是根据类型处理器TypeHandler处理的。
+
+query/update方法通过ResultSetHandler进行处理结果的封装，如果是update语句，就返回参数，否则就通过TypeHandler处理结果类型，然后用ObjectFactory提供的规则组装对象，返回调用者。
+
+这便是SqlSession执行的过程。
+
+mybatis涉及的设计模式
+
+单例模式：
+
+Configuration采用的是单例模式
+
+命令模式：
+
+命令模式的本质是对请求进行封装，一个请求对应于一个命令，将发出命令的责任和执行命令的责任分割开。
+
+每一个命令都是一个操作：请求的一方发出请求要求执行一个操作；接收的一方收到请求，并执行相应的操作。
+
+命令模式允许请求的一方和接收的一方独立开来，使得请求的一方不必知道接收请求的一方的接口，更不必知道请求如何被接收、操作是否被执行、何时被执行，以及是怎么被执行的。
+
+命令模式的关键在于引入了抽象命令类，请求发送者针对抽象命令类编程，只有实现了抽象命令类的具体命令才与请求接收者相关联。
+
+//抽象Command类。
+public abstract class Command {  
+    public abstract void execute();  
+}
+//具体Command类，设置对应的接收者。
+public  class ConcreteCommand extends Command {  
+    private Receiver receiver; //维持一个对请求接收者对象的引用  
+  
+    public ConcreteCommand(Receiver receiver) {
+        super();
+        this.receiver = receiver;
+    }
+
+    public void execute() {  
+        receiver.action(); //调用请求接收者的业务处理方法action()  
+    }  
+}  
+
+
+//抽象接收者。
+
+public  abstract class Receiver {  
+    public abstract void action();
+}  
+//第一个接收者
+public class ConcreteReceiver extends Receiver{
+
+    @Override
+    public void action() {
+        System.out.println("ConcreteReceiver receives the command!");
+    }
+
+}
+//第二个接收者
+public class ConcreteReceiver extends Receiver{
+
+    @Override
+    public void action() {
+        System.out.println("ConcreteReceiver receives the command!");
+    }
+
+}
+
+//调用者Invoker类
+public class Invoker {  
+    private Command command;  
+      
+    //构造注入  
+    public Invoker(Command command) {  
+        this.command = command;  
+    }  
+      
+    //设值注入  
+    public void setCommand(Command command) {  
+        this.command = command;  
+    }  
+      
+    //业务方法，用于调用命令类的execute()方法  
+    public void call() {  
+        command.execute();  
+    }  
+}  
+
+//创建了两个接收者，分别发送指令。
+public class Client {
+
+    public static void main(String[] args) {
+        Receiver receiver1 = new ConcreteReceiver();
+        Command command1 = new ConcreteCommand(receiver1);
+
+        Invoker invoker = new Invoker();
+        invoker.setCommand(command1);
+        invoker.call();
+
+        Receiver receiver2 = new ConcreteReceiver2();
+        Command command2 = new ConcreteCommand(receiver2);
+
+        invoker.setCommand(command2);
+        invoker.call();
+    }
+}
+
+
+动态代理模式：
+
+结构型设计模式
+
+动态代理主要是利用了Java的反射机制。
+
+动态代理按功能固定代理类，动态的更换 代理类中的被代理对象。
+
+Subject（抽象主题角色）：定义代理类和真实主题的公共对外方法，也是代理类代理真实主题的方法；
+
+RealSubject（真实主题角色）：真正实现业务逻辑的类；
+
+Proxy（代理主题角色）：用来代理和封装真实主题；
+
+
+/*
+* 被代理对象 1--接口
+* */
+interface Subject {
+    public String say(String name, int age);
+}
+
+
+/*
+* 被代理对象 1--实现类
+* */
+class RealSubject implements Subject{
+//被代理对象有个say（）方法
+    public String say(String name, int age) {
+        return "姓名:" +name + " 年龄:" + age;
+    }
+}
+
+
+
+
+
+/*
+* 被代理对象 2--接口
+* */
+interface SubjectTwo {
+    public String say(double height, int weight);
+}
+
+
+/*
+* 被代理对象 2--实现类
+* */
+class RealSubjectTwo implements SubjectTwo {
+//被代理对象有个say（）方法
+    public String say(double height, int weight) {
+        return "身高:" + height + " 体重:" + weight;
+    }
+}
+
+
+
+
+/*
+* 代理对象 --实现类--实现接口InvocationHandler
+* */
+class MyInvocationHandler implements InvocationHandler {
+    //接收代理对象实体
+    private Object object = null;
+
+    /*
+    * 绑定不同的对象，代理类不变，对象改变
+    * */
+    public Object bind(Object object) {
+        this.object = object;
+        return Proxy.newProxyInstance(object.getClass().getClassLoader(), object.getClass().getInterfaces(), this);
+    }
+
+    /*
+    * （代理对象创建，执行此 Proxy.newProxyInstance 方法后，自动执行 invoke（）方法）实现代理方法----日志代理功能
+    * */
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        System.out.println("日志：打印信息");
+        //要通过反射来实现
+        Object temp = method.invoke(this.object, args);
+        return temp;
+    }
+}
+
+public class hello {
+    public static void main(String[] args) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        MyInvocationHandler proxy = new MyInvocationHandler();
+        //代理对象 1
+        Subject sub = (Subject) proxy.bind(new RealSubject());
+        System.out.println(sub.say("wwh", 21));
+        //代理对象 2
+        SubjectTwo subTwo = (SubjectTwo) proxy.bind(new RealSubjectTwo());
+        System.out.println(subTwo.say(1.86, 75));
+        //即使是更换对象的方法也会打印信息
+    }
+}
+
+Builder模式：
+
+//在某些场景下，某个类有很多属性，并且属性全是final
+public class User {
+
+    private final String firstName;     // 必传参数
+    private final String lastName;      // 必传参数
+    private final int age;              // 可选参数
+    private final String phone;         // 可选参数
+    private final String address;       // 可选参数
+}
+
+//参数有些是必要的，有些是不必要的。如何传入这些参数的值？
+//这就是建造者模式的用处
+public class User {
+
+    private final String firstName;     // 必传参数
+    private final String lastName;      // 必传参数
+    private final int age;              // 可选参数
+    private final String phone;         // 可选参数
+    private final String address;       // 可选参数
+
+
+
+
+// 1--创建一个私有的构造方法
+    private User(UserBuilder builder) {
+        this.firstName = builder.firstName;
+        this.lastName = builder.lastName;
+        this.age = builder.age;
+        this.phone = builder.phone;
+        this.address = builder.address;
+    }
+// 2--只提供参数的getter（）方法
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+//3--创建一个内部静态builder类
+    public static class UserBuilder {
+    //4--将必须的值定义final
+        private final String firstName;
+        private final String lastName;
+        private int age;
+        private String phone;
+        private String address;
+//5--构造一个只含有必须值的构造函数
+        public UserBuilder(String firstName, String lastName) {
+            this.firstName = firstName;
+            this.lastName = lastName;
+        }
+//6--非必须参数通过seeter（）传入
+        public UserBuilder age(int age) {
+            this.age = age;
+            return this;
+        }
+
+        public UserBuilder phone(String phone) {
+            this.phone = phone;
+            return this;
+        }
+
+        public UserBuilder address(String address) {
+            this.address = address;
+            return this;
+        }
+//7--返回构造完的model对象
+        public User build() {
+            return new User(this);
+        }
+    }
+}
+
+
